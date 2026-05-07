@@ -124,7 +124,7 @@ function buildReviewPageUrl(context: ProductContext, page: number, sort: ReviewS
   return reviewUrl.toString();
 }
 
-async function fetchHtml(url: string) {
+async function fetchHtml(url: string, attempt: number = 1): Promise<string> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT);
 
@@ -139,7 +139,20 @@ async function fetchHtml(url: string) {
       cache: 'no-store',
     });
 
+    // Handle 529 (Too Many Requests) with retry logic
+    if (response.status === 529 && attempt < 3) {
+      const backoffMs = Math.pow(2, attempt - 1) * 1000; // 1s, 2s for retries
+      await new Promise((resolve) => setTimeout(resolve, backoffMs));
+      return fetchHtml(url, attempt + 1);
+    }
+
     if (!response.ok) {
+      if (response.status === 529) {
+        throw new Error('Flipkart is temporarily limiting requests. Please try again in a few moments.');
+      }
+      if (response.status === 403) {
+        throw new Error('Flipkart is blocking this request. Try a different product URL.');
+      }
       throw new Error(`Flipkart responded with ${response.status}.`);
     }
 
