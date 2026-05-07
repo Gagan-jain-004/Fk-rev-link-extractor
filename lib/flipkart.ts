@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import type { ProductMeta, ReviewItem, ReviewSort, ReviewsResponse } from '@/lib/types';
 
 const FLIPKART_ORIGIN = 'https://www.flipkart.com';
-const DEFAULT_TIMEOUT = Number(process.env.FLIPKART_FETCH_TIMEOUT_MS ?? 12000);
+const DEFAULT_TIMEOUT = Number(process.env.FLIPKART_FETCH_TIMEOUT_MS ?? 25000);
 const DEFAULT_USER_AGENT =
   process.env.FLIPKART_USER_AGENT ??
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
