@@ -49,14 +49,14 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
 
                 <div className="flex items-center gap-3">
                   <a
-                    href="mailto:hello@zustdevservices.com"
+                    href="https://mail.google.com/mail/?view=cm&fs=1&tf=1&to=zustdevservices@gmail.com"
                     aria-label="Email Zust Dev Services"
                     className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-background/70 text-foreground shadow-sm transition-transform hover:-translate-y-0.5 hover:bg-emerald-500/10 hover:text-emerald-600 dark:bg-white/5 dark:hover:text-emerald-400"
                   >
                     <Mail className="h-4 w-4" />
                   </a>
                   <a
-                    href="https://www.linkedin.com/company/zustdevservices"
+                    href="https://www.linkedin.com/in/zustdev-services-4b17783b2/"
                     target="_blank"
                     rel="noreferrer"
                     aria-label="LinkedIn Zust Dev Services"
