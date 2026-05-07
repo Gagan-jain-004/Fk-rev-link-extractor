@@ -8,10 +8,10 @@ import {
   ArrowDownWideNarrow,
   ArrowUpNarrowWide,
   ChevronDown,
+  ChevronUp,
   ChevronRight,
   Copy,
   Flame,
-  ImageIcon,
   Link2,
   Loader2,
   ScanSearch,
@@ -69,10 +69,10 @@ export function ReviewBrowser() {
   const [sort, setSort] = useState<ReviewSort>('MOST_RECENT');
   const [search, setSearch] = useState('');
   const [reviewCountLimit, setReviewCountLimit] = useState(20);
-  const [withImagesOnly, setWithImagesOnly] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [copiedReviewId, setCopiedReviewId] = useState<string | null>(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
   const debounceSearch = useDebounce(search, 220);
   const activeRequestId = useRef(0);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -82,7 +82,6 @@ export function ReviewBrowser() {
     const query = debounceSearch.trim().toLowerCase();
 
     return loadedReviews
-      .filter((review) => (withImagesOnly ? review.images.length > 0 : true))
       .filter((review) => {
         if (!query) {
           return true;
@@ -91,8 +90,8 @@ export function ReviewBrowser() {
         const haystack = [review.reviewerName, review.title, review.text, review.variant, review.dateLabel].filter(Boolean).join(' ').toLowerCase();
         return haystack.includes(query);
       })
-      .sort((left, right) => compareReviews(left, right, sort));
-  }, [debounceSearch, loadedReviews, withImagesOnly, sort]);
+        .sort((left, right) => compareReviews(left, right, sort));
+      }, [debounceSearch, loadedReviews, sort]);
 
   const uniqueReviews = useMemo(() => {
     const seen = new Set<string>();
@@ -245,6 +244,20 @@ export function ReviewBrowser() {
   }, []);
 
   useEffect(() => {
+    function onScroll() {
+      setShowScrollTop(window.pageYOffset > 240);
+    }
+
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  function scrollToTop() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  useEffect(() => {
     if (!activeUrl || loading || loadingMore) {
       return;
     }
@@ -321,7 +334,7 @@ export function ReviewBrowser() {
           </div>
         ) : null}
 
-        {error ? <p className="mt-3 text-sm text-red-500 dark:text-red-400">{error}</p> : null}
+        {error ? <p className="mt-3 text-sm text-red-900 dark:text-red-400 font-medium">{error}</p> : null}
         {loading ? (
           <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -382,22 +395,22 @@ export function ReviewBrowser() {
                   <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 </div>
 
-                <Select
-                  value={String(reviewCountLimit)}
-                  onChange={(event) => setReviewCountLimit(Number(event.target.value))}
-                  className="h-10 rounded-xl border-white/10 bg-background/80 text-sm shadow-sm transition-all focus:border-emerald-500/40 sm:h-11"
-                  aria-label="Show review count"
-                >
-                  <option value="10">Show 10</option>
-                  <option value="20">Show 20</option>
-                  <option value="50">Show 50</option>
-                  <option value="100">Show 100</option>
-                </Select>
+                <div className="relative">
+                  <Select
+                    value={String(reviewCountLimit)}
+                    onChange={(event) => setReviewCountLimit(Number(event.target.value))}
+                    className="h-10 rounded-xl border-white/10 bg-background/80 text-sm shadow-sm transition-all focus:border-emerald-500/40 sm:h-11"
+                    aria-label="Show review count"
+                  >
+                    <option value="10">Show 10</option>
+                    <option value="20">Show 20</option>
+                    <option value="50">Show 50</option>
+                    <option value="100">Show 100</option>
+                  </Select>
+                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                </div>
 
-                <Button variant={withImagesOnly ? 'default' : 'outline'} size="sm" onClick={() => setWithImagesOnly((value) => !value)} className="h-10 rounded-xl border-white/10 text-xs shadow-sm transition-all sm:h-11 sm:text-sm">
-                  <Copy className="h-4 w-4" />
-                  With images
-                </Button>
+                
               </div>
 
             </div>
@@ -431,19 +444,31 @@ export function ReviewBrowser() {
 
       <AnimatePresence>
         {toast ? (
-          <motion.div
-            initial={{ opacity: 0, y: 16, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 16, scale: 0.96 }}
-            className={cn(
-              'fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-2xl border px-4 py-3 shadow-2xl backdrop-blur-xl',
-              toast.kind === 'success' ? 'border-emerald-500/20 bg-emerald-500/15 text-emerald-50' : 'border-red-500/20 bg-red-500/15 text-red-50',
-            )}
-          >
-            {toast.message}
-          </motion.div>
-        ) : null}
+            <motion.div
+              initial={{ opacity: 0, y: 16, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 16, scale: 0.96 }}
+              className={cn(
+                'fixed top-6 right-6 z-50 rounded-2xl border px-4 py-3 shadow-2xl backdrop-blur-xl',
+                toast.kind === 'success'
+                  ? 'border-emerald-500/20 bg-emerald-100 text-emerald-900 dark:bg-emerald-500/15 dark:text-emerald-50'
+                  : 'border-red-500/20 bg-red-100 text-red-900 dark:bg-red-500/15 dark:text-red-50',
+              )}
+            >
+              {toast.message}
+            </motion.div>
+          ) : null}
       </AnimatePresence>
+
+        {showScrollTop ? (
+          <button
+            onClick={scrollToTop}
+            aria-label="Scroll to top"
+            className="fixed bottom-6 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-600 text-white shadow-lg transition-colors hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600"
+          >
+            <ChevronUp className="h-5 w-5" />
+          </button>
+        ) : null}
     </div>
   );
 }
