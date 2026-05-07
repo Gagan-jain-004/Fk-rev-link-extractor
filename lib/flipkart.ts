@@ -92,11 +92,7 @@ async function resolveFinalFlipkartUrl(url: string) {
     const response = await fetch(url, {
       method: 'GET',
       redirect: 'follow',
-      headers: {
-        'user-agent': DEFAULT_USER_AGENT,
-        accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'accept-language': 'en-IN,en;q=0.9',
-      },
+      headers: getRequestHeaders(),
       signal: controller.signal,
       cache: 'no-store',
     });
@@ -124,17 +120,31 @@ function buildReviewPageUrl(context: ProductContext, page: number, sort: ReviewS
   return reviewUrl.toString();
 }
 
+function getRequestHeaders(referer?: string) {
+  return {
+    'user-agent': DEFAULT_USER_AGENT,
+    'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+    'accept-encoding': 'gzip, deflate, br',
+    'accept-language': 'en-IN,en;q=0.9,hi;q=0.8',
+    'cache-control': 'max-age=0',
+    'sec-fetch-dest': 'document',
+    'sec-fetch-mode': 'navigate',
+    'sec-fetch-site': 'none',
+    'sec-fetch-user': '?1',
+    'dnt': '1',
+    'connection': 'keep-alive',
+    'upgrade-insecure-requests': '1',
+    ...(referer ? { 'referer': referer } : {}),
+  };
+}
+
 async function fetchHtml(url: string, attempt: number = 1): Promise<string> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT);
 
   try {
     const response = await fetch(url, {
-      headers: {
-        'user-agent': DEFAULT_USER_AGENT,
-        accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'accept-language': 'en-IN,en;q=0.9',
-      },
+      headers: getRequestHeaders(),
       signal: controller.signal,
       cache: 'no-store',
     });
