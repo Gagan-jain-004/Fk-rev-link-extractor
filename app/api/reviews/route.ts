@@ -46,6 +46,7 @@ export async function GET(request: NextRequest) {
     }
 
     const message = error instanceof Error ? error.message : 'Unable to load Flipkart reviews.';
+    console.error('[API /reviews] Error fetching reviews:', { url, page, sort, error: message });
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

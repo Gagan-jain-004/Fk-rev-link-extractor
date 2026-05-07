@@ -123,17 +123,10 @@ function buildReviewPageUrl(context: ProductContext, page: number, sort: ReviewS
 function getRequestHeaders(referer?: string) {
   return {
     'user-agent': DEFAULT_USER_AGENT,
-    'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-    'accept-encoding': 'gzip, deflate, br',
-    'accept-language': 'en-IN,en;q=0.9,hi;q=0.8',
-    'cache-control': 'max-age=0',
-    'sec-fetch-dest': 'document',
-    'sec-fetch-mode': 'navigate',
-    'sec-fetch-site': 'none',
-    'sec-fetch-user': '?1',
-    'dnt': '1',
+    'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'accept-language': 'en-IN,en;q=0.9',
+    'cache-control': 'no-cache',
     'connection': 'keep-alive',
-    'upgrade-insecure-requests': '1',
     ...(referer ? { 'referer': referer } : {}),
   };
 }
@@ -151,6 +144,7 @@ async function fetchHtml(url: string, attempt: number = 1): Promise<string> {
 
     // Handle 529 (Too Many Requests) with retry logic
     if (response.status === 529 && attempt < 3) {
+      clearTimeout(timeout);
       const backoffMs = Math.pow(2, attempt - 1) * 1000; // 1s, 2s for retries
       await new Promise((resolve) => setTimeout(resolve, backoffMs));
       return fetchHtml(url, attempt + 1);
