@@ -45,6 +45,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 429 });
     }
 
+    if (error instanceof Error && (error.name === 'FlipkartRequestTimeoutError' || /took too long/i.test(error.message))) {
+      return NextResponse.json({ error: error.message }, { status: 504 });
+    }
+
     const message = error instanceof Error ? error.message : 'Unable to load Flipkart reviews.';
     console.error('[API /reviews] Error fetching reviews:', { url, page, sort, error: message });
     return NextResponse.json({ error: message }, { status: 500 });

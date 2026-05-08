@@ -25,6 +25,13 @@ class FlipkartRateLimitError extends Error {
   }
 }
 
+class FlipkartRequestTimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'FlipkartRequestTimeoutError';
+  }
+}
+
 const supportedServerSorts: ReviewSort[] = ['MOST_RECENT', 'MOST_HELPFUL', 'POSITIVE_FIRST', 'NEGATIVE_FIRST'];
 
 export function parseFlipkartProductUrl(rawUrl: string): ProductContext {
@@ -134,7 +141,7 @@ async function fetchHtml(url: string): Promise<string> {
     return await response.text();
   } catch (error) {
     if (isAbortError(error)) {
-      throw new FlipkartRateLimitError('Flipkart is rate limiting this request. Please try again in a few moments.');
+      throw new FlipkartRequestTimeoutError('Flipkart took too long to respond. Please try again in a few moments.');
     }
 
     throw error;
