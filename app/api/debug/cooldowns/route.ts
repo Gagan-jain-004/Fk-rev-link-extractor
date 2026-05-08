@@ -23,7 +23,8 @@ export async function GET(request: NextRequest) {
         result[hostname] = Number(raw) || 0;
       }
     } catch (e) {
-      console.error('[debug/cooldowns] error reading redis', e && e.message);
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error('[debug/cooldowns] error reading redis', msg);
     }
   }
 
