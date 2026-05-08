@@ -127,6 +127,13 @@ export function ReviewBrowser() {
       return;
     }
 
+    if (isShortFlipkartUrl(trimmed)) {
+      const message = 'Please enter the full Flipkart product URL, not a short link.';
+      setError(message);
+      pushToast(message, 'error');
+      return;
+    }
+
     setError(null);
     setLoading(true);
     setLoadingMore(false);
@@ -297,7 +304,7 @@ export function ReviewBrowser() {
             <Input
               value={sourceUrl}
               onChange={(event) => setSourceUrl(event.target.value)}
-              placeholder="Paste a Flipkart product URL, for example https://www.flipkart.com/.../p/..."
+              placeholder="Paste the full Flipkart product URL, for example https://www.flipkart.com/.../p/..."
               disabled={loading}
               className="h-12 rounded-xl border-white/10 bg-white/70 pl-11 pr-11 text-sm shadow-lg placeholder:text-muted-foreground/70 sm:h-14 sm:rounded-2xl sm:text-base dark:bg-slate-950/40"
             />
@@ -517,6 +524,16 @@ function LoadingMoreState() {
       Loading more reviews...
     </div>
   );
+}
+
+function isShortFlipkartUrl(value: string) {
+  try {
+    const url = new URL(value.startsWith('http') ? value : `https://${value}`);
+    const hostname = url.hostname.replace(/^www\./, '');
+    return hostname === 'dl.flipkart.com' || /^\/s\//i.test(url.pathname);
+  } catch {
+    return false;
+  }
 }
 
 function EmptyState({ search }: { search: string }) {

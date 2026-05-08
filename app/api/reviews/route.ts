@@ -41,8 +41,8 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    if (error instanceof Error && (error.name === 'AbortError' || /aborted/i.test(error.message))) {
-      return NextResponse.json({ error: 'Flipkart took too long to respond. Please try again.' }, { status: 504 });
+    if (error instanceof Error && (error.name === 'FlipkartRateLimitError' || /rate limit/i.test(error.message))) {
+      return NextResponse.json({ error: error.message }, { status: 429 });
     }
 
     const message = error instanceof Error ? error.message : 'Unable to load Flipkart reviews.';

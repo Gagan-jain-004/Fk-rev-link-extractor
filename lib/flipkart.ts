@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import type { ProductMeta, ReviewItem, ReviewSort, ReviewsResponse } from '@/lib/types';
 
 const FLIPKART_ORIGIN = 'https://www.flipkart.com';
-const DEFAULT_TIMEOUT = Number(process.env.FLIPKART_FETCH_TIMEOUT_MS ?? 25000);
+const DEFAULT_TIMEOUT_MS = 12_000;
 const DEFAULT_USER_AGENT =
   process.env.FLIPKART_USER_AGENT ??
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
@@ -17,6 +17,13 @@ type ProductContext = {
 };
 
 type ReviewCandidate = Record<string, unknown>;
+
+class FlipkartRateLimitError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'FlipkartRateLimitError';
+  }
+}
 
 const supportedServerSorts: ReviewSort[] = ['MOST_RECENT', 'MOST_HELPFUL', 'POSITIVE_FIRST', 'NEGATIVE_FIRST'];
 
@@ -62,17 +69,11 @@ export async function fetchFlipkartReviews(productUrl: string, page: number, sor
 async function resolveProductContext(rawUrl: string) {
   const normalizedInput = normalizeFlipkartUrl(rawUrl);
 
-  try {
-    return parseFlipkartProductUrl(normalizedInput.toString());
-  } catch (error) {
-    const needsResolution = looksLikeShortFlipkartUrl(normalizedInput);
-    if (!needsResolution) {
-      throw error;
-    }
-
-    const redirectedUrl = await resolveFinalFlipkartUrl(normalizedInput.toString());
-    return parseFlipkartProductUrl(redirectedUrl.toString());
+  if (looksLikeShortFlipkartUrl(normalizedInput)) {
+    throw new Error('Please enter the full Flipkart product URL, not a short link.');
   }
+
+  return parseFlipkartProductUrl(normalizedInput.toString());
 }
 
 function normalizeFlipkartUrl(rawUrl: string) {
@@ -82,29 +83,6 @@ function normalizeFlipkartUrl(rawUrl: string) {
 function looksLikeShortFlipkartUrl(url: URL) {
   const hostname = url.hostname.replace(/^www\./, '');
   return hostname === 'dl.flipkart.com' || /^\/s\//i.test(url.pathname);
-}
-
-async function resolveFinalFlipkartUrl(url: string) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT);
-
-  try {
-    const response = await fetch(url, {
-      method: 'GET',
-      redirect: 'follow',
-      headers: getRequestHeaders(),
-      signal: controller.signal,
-      cache: 'no-store',
-    });
-
-    if (!response.ok) {
-      throw new Error(`Unable to resolve Flipkart short URL. Received ${response.status}.`);
-    }
-
-    return new URL(response.url);
-  } finally {
-    clearTimeout(timeout);
-  }
 }
 
 function buildReviewPageUrl(context: ProductContext, page: number, sort: ReviewSort) {
@@ -131,9 +109,9 @@ function getRequestHeaders(referer?: string) {
   };
 }
 
-async function fetchHtml(url: string, attempt: number = 1): Promise<string> {
+async function fetchHtml(url: string): Promise<string> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT);
+  const timeout = setTimeout(() => controller.abort(), getTimeoutMs());
 
   try {
     const response = await fetch(url, {
@@ -142,18 +120,11 @@ async function fetchHtml(url: string, attempt: number = 1): Promise<string> {
       cache: 'no-store',
     });
 
-    // Handle 529 (Too Many Requests) with retry logic
-    if (response.status === 529 && attempt < 3) {
-      clearTimeout(timeout);
-      const backoffMs = Math.pow(2, attempt - 1) * 1000; // 1s, 2s for retries
-      await new Promise((resolve) => setTimeout(resolve, backoffMs));
-      return fetchHtml(url, attempt + 1);
+    if (response.status === 529) {
+      throw new FlipkartRateLimitError('Flipkart is rate limiting this request. Please try again in a few moments.');
     }
 
     if (!response.ok) {
-      if (response.status === 529) {
-        throw new Error('Flipkart is temporarily limiting requests. Please try again in a few moments.');
-      }
       if (response.status === 403) {
         throw new Error('Flipkart is blocking this request. Try a different product URL.');
       }
@@ -161,9 +132,29 @@ async function fetchHtml(url: string, attempt: number = 1): Promise<string> {
     }
 
     return await response.text();
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw new FlipkartRateLimitError('Flipkart is rate limiting this request. Please try again in a few moments.');
+    }
+
+    throw error;
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function getTimeoutMs() {
+  const configuredTimeout = Number(process.env.FLIPKART_FETCH_TIMEOUT_MS);
+
+  if (Number.isFinite(configuredTimeout) && configuredTimeout > 0) {
+    return configuredTimeout;
+  }
+
+  return DEFAULT_TIMEOUT_MS;
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof Error && (error.name === 'AbortError' || /aborted/i.test(error.message));
 }
 
 function parseProductMeta(html: string, context: ProductContext, reviewPageUrl: string): ProductMeta {
