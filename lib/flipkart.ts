@@ -117,37 +117,83 @@ function getRequestHeaders(referer?: string) {
 }
 
 async function fetchHtml(url: string): Promise<string> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), getTimeoutMs());
+  // Retry with backoff for transient 5xx/network errors, but do NOT retry 429 (rate limit) or 403 (forbidden).
+  const maxAttempts = 2;
 
-  try {
-    const response = await fetch(url, {
-      headers: getRequestHeaders(),
-      signal: controller.signal,
-      cache: 'no-store',
-    });
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const controller = new AbortController();
+    let timeout: ReturnType<typeof setTimeout> | undefined = undefined;
+    timeout = setTimeout(() => controller.abort(), getTimeoutMs());
 
-    if (response.status === 529) {
-      throw new FlipkartRateLimitError('Flipkart is rate limiting this request. Please try again in a few moments.');
-    }
+    try {
+      const response = await fetch(url, {
+        headers: getRequestHeaders(),
+        signal: controller.signal,
+        cache: 'no-store',
+      });
 
-    if (!response.ok) {
+      if (response.status === 529) {
+        // Tell caller this is a rate-limited response
+        throw new FlipkartRateLimitError('Flipkart is rate limiting this request. Please try again in a few moments.');
+      }
+
       if (response.status === 403) {
         throw new Error('Flipkart is blocking this request. Try a different product URL.');
       }
-      throw new Error(`Flipkart responded with ${response.status}.`);
-    }
 
-    return await response.text();
-  } catch (error) {
-    if (isAbortError(error)) {
-      throw new FlipkartRequestTimeoutError('Flipkart took too long to respond. Please try again in a few moments.');
-    }
+      if (response.status >= 500 && response.status < 600) {
+        // Transient server error - retry if attempts remain
+        const status = response.status;
+        if (attempt < maxAttempts) {
+          const backoffMs = 500 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 200);
+          await new Promise((resolve) => setTimeout(resolve, backoffMs));
+          continue;
+        }
 
-    throw error;
-  } finally {
-    clearTimeout(timeout);
+        throw new Error(`Flipkart responded with ${status}.`);
+      }
+
+      if (!response.ok) {
+        throw new Error(`Flipkart responded with ${response.status}.`);
+      }
+
+      return await response.text();
+    } catch (error) {
+
+      // Abort -> timeout
+      if (isAbortError(error)) {
+        if (attempt < maxAttempts) {
+          // small backoff before retrying
+          const backoffMs = 300 * attempt + Math.floor(Math.random() * 200);
+          await new Promise((resolve) => setTimeout(resolve, backoffMs));
+          continue;
+        }
+
+        throw new FlipkartRequestTimeoutError('Flipkart took too long to respond. Please try again in a few moments.');
+      }
+
+      // Don't retry known non-transient errors
+      if (error instanceof FlipkartRateLimitError || (error instanceof Error && /blocking this request/i.test(error.message))) {
+        throw error;
+      }
+
+      // For other errors, retry once then bubble up
+      if (attempt < maxAttempts) {
+        const backoffMs = 300 * attempt + Math.floor(Math.random() * 200);
+        await new Promise((resolve) => setTimeout(resolve, backoffMs));
+        continue;
+      }
+
+      throw error;
+    } finally {
+      if (typeof timeout !== 'undefined') {
+        clearTimeout(timeout as unknown as number);
+      }
+    }
   }
+
+  // Should be unreachable
+  throw new Error('Unable to fetch Flipkart HTML.');
 }
 
 function getTimeoutMs() {
